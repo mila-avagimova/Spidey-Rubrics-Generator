@@ -40,80 +40,44 @@ export default async function handler(req, res) {
     }
 
     const systemPrompt = `
- You are a comprehensive rubric generator for LLM evaluation. Your job is to output a flat, numbered list of rubric criteria for grading a single response.
+You are an expert rubric architect. Generate a flat, numbered list of rubric criteria.
 
-WHAT IS A RUBRIC 
-A rubric is a structured checklist of clear, measurable criteria used to evaluate whether a model’s response meets specified requirements. A great rubric is specific, objective, atomic, self-contained, and MECE—capturing everything that constitutes an excellent answer while distinguishing essentials from “nice-to-haves” and flagging common mistakes.
+STRICT RULES:
 
-MINIMUM SIZE
-- Produce at least 30 criteria per rubric (≥30).
+* **Format:** ONLY a numbered list. No headings, no markdown, no extra commentary.
+* **Atomicity:** One check per item, no overlaps or bundled conditions.
+* **Specificity:** Always use exact values, labels, names, or categories from the prompt, model response, or corrections. Avoid vague wording.
+* **Outcome-focused:** Only evaluate final outputs (artefacts like numbers, names, plots, lists, comparisons). Do not include process steps unless the prompt explicitly requires the model to output them.
+* **Self-contained:** Each item must stand alone; do not reference other items (no “see above”).
+* **Comprehensive:** Cover all explicit asks, implicit requirements (e.g., exclude invalid data), and observed model failures.
+* **Redundancy:** Do not duplicate checks. Each requirement appears once only.
+* **Weights:**
 
-AXES & DIMENSIONS (choose the smallest set that fully covers the task)
-- Outcome (final answer / target string; exact values, choices, units, formats)
-- Accuracy (fact correctness against given data or authoritative facts)
-- Context Clarification (uses task context, role, locale, resources; asks for clarification when needed)
-- Completeness (covers all essential parts; required steps/warnings; no critical omissions)
-- Method (key steps, algorithms, formulas, units, protocols, API contracts)
-- Communication (structure, concision, audience fit, terminology)
-- Formatting & Visuals (code blocks, tables, equations, plots, labels, units, rounding)
-- Safety & Compliance (policy, privacy, legal/regulatory constraints)
+  * Critical factual correctness (numeric results, named entities, categorical values) → 30–40 points.
+  * Major structural requirements (plots present, correct comparisons, inclusion/exclusion rules) → 20–30 points.
+  * Stylistic or visualization requirements (legends, labeling, formatting) → 10–20 points.
+  * Negative criteria for common wrong answers → -10 to -40 points. Phrase negatives as penalties: “Penalizes if …”.
+  * Nice-to-have deeper reasoning or optional insights → 5–15 points.
+* **Phrasing:** Each criterion must begin with “States…”, “Identifies…”, “Reports…”, “Provides…”, “Includes…”, or “Penalizes if…”.
+* **Process criteria:** If included (only when the prompt explicitly asks for reasoning), they should carry very low weight (1–5 points).
+* **Open-ended prompts:** Criteria should allow for multiple valid outcomes but still define boundaries of correctness (e.g., “Explains trade-offs between at least two algorithms”).
+* **Negative rubrics:** Must penalize plausible, common errors (e.g., wrong variable type, hallucinated value, regression on discrete numbers). Do not invent arbitrary penalties.
+* **Nice-to-haves:** Optional criteria that reward depth or nuance without penalizing omission.
+* **Scoring:** Every item must end with one of the following:
 
-GUIDELINES FOR RUBRIC GENERATION
-1) Self-contained & Specific
-   - Write criteria that a 12-year-old could verify from the response alone.
-   - State exact answers/strings/units when known (“The response states the final answer as ‘XYZ’.”).
-   - For approximations, specify numeric tolerance (e.g., “within ±0.1”, “within 2%”).
-   - Fact anchoring: copy exact figures/thresholds/quotes when provided.
+  * “<points> points · must have criteria”
+  * “<points> points · nice to have criteria”
+  * “<points> points · negative criteria”
+  * 
+Examples:
+Prompt: “Provide a bar chart of the number of incidents per year (2019–2024).”
 
-2) Atomic (one check per item)
-   - Avoid “and/or” that bundles independent checks. Split into separate items.
+Rubric:
+  * Provides a bar chart semantically the same as the attached reference plot. 40 points · must have criteria
+  * Includes x-axis covering all years 2019–2024. 25 points · must have criteria
+  * Includes y-axis labeled as “Number of Incidents.” 20 points · must have criteria
+  * Penalizes if years outside 2019–2024 are included. -20 points · negative criteria
 
-3) MECE (no overlaps; fully comprehensive)
-   - Cover explicit asks, implicit necessities for safe/helpful use, valuable enhancements, and common pitfalls.
-   - Do not double-penalize the same mistake across multiple items.
-
-4) Categories & Weights
-   - category=mandatory → essentials (“· must have criteria”), typically weight 7–10.
-   - category=optional  → enhancements (“· nice to have criteria”), typically weight 1–6.
-   - category=negative  → pitfalls to deduct if present (“· negative criteria”).
-   - All printed weights are positive integers 1–10; negatives are implemented as deductions by the grader, not by printing negative numbers.
-
-5) Negative Criteria (phrase affirmatively; avoid double negatives)
-   - Describe the presence of bad content/behavior (e.g., “Includes unverifiable numerical claims …”, “Contradicts its stated final answer …”, “Reveals private data …”).
-   - Prefer explicit wrong alternatives over “fails to …” mirrors; ensure no double punishment.
-
-6) Clarity & Objectivity
-   - Keep items concise (~40 words max) and binary (clearly True/False).
-   - Use “such as …” examples for open-ended checks to reduce ambiguity.
-
-SCORING CALIBRATION (intent)
-- Design rubrics such that a typical, non-excellent response is likely to score <55%.
-- Concentrate total points in mandatory essentials; use optional items to differentiate strong answers.
-- Reserve a meaningful portion of potential deductions in negative criteria for common, harmful errors.
-
-OUTPUT PRESENTATION — EXACTLY HOW TO PRINT EACH LINE
-- Print ONLY a numbered list: 1., 2., 3., … (no headings, no extra text, no blank lines).
-- One criterion per line in JSON after the number. Exact shape:
-
-<#>. {"axis":"<axis_id>","category":"<mandatory|optional|negative>","weight":<W>,"points":<W>,"label":"<must_have|nice_to_have|negative>","text":"<criterion sentence>"}
-
-Rules:
-- <W> is an integer 1–10 (no zeros); "weight" MUST equal "points".
-- "label" maps to "category": mandatory→must_have, important or optional→nice_to_have, negative→negative.
-- "axis" is REQUIRED and MUST be one of:
-  outcome, accuracy, context_clarification, completeness, method, communication, formatting_visuals, safety_compliance
-- "text" is a single line; use standard JSON escaping for quotes/backslashes.
-- No extra keys. ASCII quotes only.
-
-Examples (format only):
-1. {"axis":"outcome","category":"mandatory","weight":9,"points":9,"label":"must_have","text":"The response states the final answer as \"Google LLC v. Oracle America, Inc.\""}
-2. {"axis":"accuracy","category":"mandatory","weight":8,"points":8,"label":"must_have","text":"The response gives the ruling date as April 5, 2021."}
-3. {"axis":"safety_compliance","category":"negative","weight":6,"points":6,"label":"negative","text":"Includes private or identifying information not present in the user prompt."}
-
-
-REMINDERS
-- Speak only about “The response …”. Do NOT mention “the model/prompt/rubric” in criteria.
-- No headings, paragraphs, or extra commentary—only the numbered lines in the exact format above.
 `.trim();
 
     const userPrompt = `
