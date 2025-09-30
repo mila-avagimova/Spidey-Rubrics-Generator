@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Rubrics Co-Pilot</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      margin: 0;
+      background: #f4f6fb;
+      color: #111827;
+    }
+    header {
+      text-align: center;
+      padding: 16px 12px 8px;
+    }
+    header img {
+      width: 164px;
+      height: 164px;
+      border-radius: 12px;
+    }
+    h1 {
+      margin: 12px 0 4px;
+      font-size: 28px;
+      letter-spacing: .2px;
+    }
+    .subtitle {
+      color: #475569;
+      margin: 0 0 6px;
+    }
+    .app {
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 20px;
+      padding: 20px;
+      height: calc(100vh - 220px);
+      box-sizing: border-box;
+    }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,.1);
+      padding: 16px;
+      overflow-y: auto;
+    }
+    textarea {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid #ddd;
+      padding: 8px;
+      margin: 8px 0;
+      font-size: 14px;
+      font-family: monospace;
+      box-sizing: border-box;
+    }
+    button {
+      padding: 8px 14px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+      margin: 4px;
+      transition: background 0.2s ease, transform 0.1s ease;
+    }
+    button:hover { transform: translateY(-1px); }
+    .btn-green { background: #22c55e; color: #fff; }
+    .btn-green:hover { background: #16a34a; }
+    .btn-red { background: #ef4444; color: #fff; }
+    .btn-red:hover { background: #dc2626; }
+    .btn-primary { background: #3b82f6; color: #fff; }
+    .btn-primary:hover { background: #2563eb; }
+    mark.green { background: #bbf7d0; border-radius: 3px; padding: 0 2px; }
+    mark.red { background: #fecaca; border-radius: 3px; padding: 0 2px; }
+    .highlight-item {
+      background: #f9fafb;
+      border-left: 4px solid #3b82f6;
+      margin-bottom: 8px;
+      padding: 6px;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    .highlight-item.green { border-left-color: #22c55e; }
+    .highlight-item.red { border-left-color: #ef4444; }
+    .popup {
+      position: absolute;
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 10px;
+      box-shadow: 0 4px 10px rgba(0,0,0,.2);
+      z-index: 1000;
+      display: none;
+      max-width: 250px;
+    }
+    #rubrics {
+      background: #1e293b;
+      color: #e2e8f0;
+      border-radius: 8px;
+      padding: 12px;
+      margin-top: 12px;
+      white-space: pre-wrap;
+      font-family: monospace;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <img src="Rubrics_Co-Pilot.png" alt="Rubrics Co-Pilot Logo" />
+  </header>
+
+  <div class="app">
+    <!-- LEFT PANEL -->
+    <div class="card">
+      <h2>Task Prompt</h2>
+      <label><input type="checkbox" id="togglePrompt" checked /> Include Task Prompt</label>
+      <textarea id="taskPrompt" rows="3" placeholder="Paste the task prompt here..."></textarea>
+
+      <h2>Model Response</h2>
+      <textarea id="responseInput" rows="6" placeholder="Paste the model response here..."></textarea>
+      <button class="btn-primary" id="loadBtn">Load Response</button>
+
+      <h2>Rendered Response (Highlight Here)</h2>
+      <div id="responseBox" class="card" style="min-height:150px;"></div>
+    </div>
+
+    <!-- RIGHT PANEL -->
+    <div class="card">
+      <h2>Highlights</h2>
+      <div id="highlights"></div>
+
+      <label>Extras (things missing in response)</label>
+      <textarea id="extras" rows="3"></textarea>
+
+      <button class="btn-primary" id="generateBtn">Generate Rubrics</button>
+
+      <h2>Generated Rubrics</h2>
+      <div id="rubrics"></div>
+    </div>
+  </div>
+
+  <!-- Popup -->
+  <div id="popup" class="popup">
+    <p id="popupText"></p>
+    <textarea id="popupComment" rows="2" placeholder="Optional note..."></textarea><br>
+    <button id="saveGreen" class="btn-green">Mark Green + Save</button>
+    <button id="saveRed" class="btn-red">Mark Red + Save</button>
+    <button id="cancelPopup">Cancel</button>
+  </div>
+
+  <script>
+    let highlights = [];
+    let originalMarkdown = "";
+    let pendingSelection = "";
+
+    const responseBox = document.getElementById("responseBox");
+    const popup = document.getElementById("popup");
+    const popupText = document.getElementById("popupText");
+
+    // Toggle prompt textarea visibility
+    const togglePrompt = document.getElementById("togglePrompt");
+    const taskPrompt = document.getElementById("taskPrompt");
+    togglePrompt.addEventListener("change", (e) => {
+      taskPrompt.style.display = e.target.checked ? "block" : "none";
+    });
+
+    function renderResponse() {
+      let rendered = marked.parse(originalMarkdown);
+      highlights.forEach((h, i) => {
+        const regex = new RegExp(h.text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+        rendered = rendered.replace(
+          regex,
+          `<mark class="${h.color}" data-id="${i}" title="${h.comment || ""}">${h.text}</mark>`
+        );
+      });
+      responseBox.innerHTML = rendered;
+    }
+
+    function renderTextareaHighlights() {
+      let text = originalMarkdown;
+      highlights.forEach(h => {
+        if (h.color === "red") {
+          text = text.replace(h.text, `[RED:${h.text} | FIX:${h.comment}]`);
+        } else {
+          text = text.replace(h.text, `[GREEN:${h.text}]`);
+        }
+      });
+      document.getElementById("responseInput").value = text;
+    }
+
+    function renderHighlights() {
+      const div = document.getElementById("highlights");
+      div.innerHTML = "";
+      highlights.forEach((h, i) => {
+        const el = document.createElement("div");
+        el.className = "highlight-item " + h.color;
+        el.innerHTML = `
+          <div><strong>${h.text}</strong></div>
+          <div>${h.comment || ""}</div>
+          <button onclick="editHighlight(${i})">✏️ Edit</button>
+          <button onclick="deleteHighlight(${i})">🗑️ Delete</button>
+        `;
+        div.appendChild(el);
+      });
+    }
+
+    function saveHighlight(color) {
+      const comment = document.getElementById("popupComment").value.trim();
+      if (color === "red" && !comment) {
+        alert("Red highlights require an explanation.");
+        return;
+      }
+      highlights.push({ text: pendingSelection, color, comment });
+      popup.style.display = "none";
+      document.getElementById("popupComment").value = "";
+      renderHighlights();
+      renderResponse();
+      renderTextareaHighlights();
+    }
+
+    function editHighlight(i) {
+      const h = highlights[i];
+      const newComment = prompt("Edit comment:", h.comment || "");
+      if (newComment !== null) {
+        highlights[i].comment = newComment;
+        renderHighlights();
+        renderResponse();
+        renderTextareaHighlights();
+      }
+    }
+
+    function deleteHighlight(i) {
+      highlights.splice(i, 1);
+      renderHighlights();
+      renderResponse();
+      renderTextareaHighlights();
+    }
+
+    document.getElementById("loadBtn").addEventListener("click", () => {
+      originalMarkdown = document.getElementById("responseInput").value;
+      renderResponse();
+    });
+
+    document.addEventListener("mouseup", () => {
+      const sel = window.getSelection();
+      const text = sel.toString().trim();
+      if (text && responseBox.contains(sel.anchorNode)) {
+        pendingSelection = text;
+        popupText.textContent = `"${text}"`;
+        popup.style.display = "block";
+        const rect = sel.getRangeAt(0).getBoundingClientRect();
+        popup.style.top = (window.scrollY + rect.bottom + 5) + "px";
+        popup.style.left = rect.left + "px";
+      }
+    });
+
+    document.getElementById("saveGreen").onclick = () => saveHighlight("green");
+    document.getElementById("saveRed").onclick = () => saveHighlight("red");
+    document.getElementById("cancelPopup").onclick = () => { popup.style.display = "none"; };
+
+    document.getElementById("generateBtn").onclick = async () => {
+      const body = {
+        taskPrompt: document.getElementById("togglePrompt").checked
+          ? document.getElementById("taskPrompt").value
+          : "",
+        responseText: originalMarkdown,
+        highlights,
+        extras: document.getElementById("extras").value
+      };
+      const res = await fetch("/api/generateRubrics", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      document.getElementById("rubrics").innerText = data.rubrics || "No rubrics generated.";
+    };
+
+    window.editHighlight = editHighlight;
+    window.deleteHighlight = deleteHighlight;
+  </script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "name": "world-tools-quest-rubric-generator",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "openai": "^4.58.1"
+  }
+}

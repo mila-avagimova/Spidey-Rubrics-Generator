@@ -1,0 +1,42 @@
+[
+  {
+    "name": "video_game_store_2021_snapshot",
+    "taskPrompt": "I just left a meeting with my boss, and I need to make a report about a snapshot from our video-game store data. Our company needs to pivot the strategy, so we will evaluate some data from 2021, which was the year we started a new plan. So, I need the revenue, member customers, and the average delivery time for that year.",
+    "tool_calls": [
+      {
+        "name": "mongodb_list",
+        "purpose": "discover the proper database.",
+        "params": []
+      },
+      {
+        "name": "mongodb_collection-schema",
+        "purpose": "enumerate collections in the video_game_store database.",
+        "params": [
+          { "key": "database", "example": "video_game_store" },
+          { "key": "collection", "example": "Purchase History" }
+        ]
+      },
+      {
+        "name": "mongodb_collection-schema",
+        "purpose": "inspect the Purchase History collection.",
+        "params": [
+          { "key": "database", "example": "video_game_store" },
+          { "key": "collection", "example": "Purchase History" }
+        ]
+      },
+      {
+        "name": "mongodb_collection-schema",
+        "purpose": "inspect the Customers collection.",
+        "params": [
+          { "key": "database", "example": "video_game_store" },
+          { "key": "collection", "example": "Customers" }
+        ]
+      }
+    ],
+    "correctAnswer": {
+      "REVENUE_2021": "{{REVENUE_2021}}",
+      "MEMBER_CUSTOMERS_2021": "{{MEMBER_CUSTOMERS_2021}}",
+      "AVERAGE_DELIVERY_TIME_2021": "{{AVERAGE_DELIVERY_TIME_2021}}"
+    }
+  }
+]
