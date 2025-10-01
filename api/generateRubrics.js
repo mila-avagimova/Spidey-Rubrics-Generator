@@ -63,15 +63,23 @@ Output must be a flat numbered list.
 
 No markdown, no headings, no commentary.
 
-2. Atomicity
+Values in tables/lists
 
-One fact or artefact per criterion.
+Each column value must be its own rubric item.
+
+Do not bundle multiple values for the same row/entity into one criterion.
 
 Example:
 
-✅ “Reports Pearson’s r = −0.3039.”
+✅ “Reports that Patrick Ricard appears with 4 seasons.”
 
-❌ “Reports Pearson’s r and explains significance.”
+✅ “Reports Patrick Ricard’s average offensive yards as 38.600000.”
+
+✅ “Reports Patrick Ricard’s average defensive impact as 5.600000.”
+
+✅ “Reports Patrick Ricard’s balance score as 6.892857.”
+
+❌ “Reports that Patrick Ricard appears with 4 seasons, 38.600000 average offensive yards, 5.600000 average defensive impact, and a balance score of 6.892857.”
 
 3. Self-contained
 
@@ -266,6 +274,7 @@ Provides a bar chart ranking the 20 players by balance score in ascending order.
 Labels each bar with the exact balance score. 20 points · must have criteria
 
 Bar chart is semantically the same as the reference. 20 points · must have criteria
+- in this case, anytime a chart is requests, have a rubric similar to this wording. ALWAYS
 `.trim();
 
     const userPrompt = `
