@@ -237,44 +237,73 @@ Reports that the 10th prime number is 29. 30 points · must have criteria
 Reports that the 15th prime number is 47. 30 points · must have criteria
 
 Example C: Table + Plots
-
 Prompt: “Report the top 20 players by balance score and visualize results.”
+
 Rubric:
 
-Provides a table with exactly 20 rows.
+Provides a table with exactly 20 rows. 25 points · must have criteria
 
-Includes the column “player name.”
+Includes the column “player name.” 20 points · must have criteria
 
-Includes the column “number of seasons.”
+Includes the column “number of seasons.” 20 points · must have criteria
 
-Includes the column “average offensive yards.”
+Includes the column “average offensive yards.” 20 points · must have criteria
 
-Includes the column “average defensive impact.”
+Includes the column “average defensive impact.” 20 points · must have criteria
 
-Includes the column “balance score.”
+Includes the column “balance score.” 20 points · must have criteria
 
-Reports that Patrick Ricard appears with 4 seasons, 38.600000 average offensive yards, 5.600000 average defensive impact, and a balance score of 6.892857. 35 points · must have criteria
+Spot-check players (atomic per value)
 
-Reports that Jesse James appears with 3 seasons, 258.500000 average offensive yards, 2.750000 average defensive impact, and a balance score of 94.000000. 35 points · must have criteria
+Reports that Patrick Ricard appears with 4 seasons. 30 points · must have criteria
 
-Reports that Josh Oliver appears with 3 seasons, 194.800000 average offensive yards, 2.000000 average defensive impact, and a balance score of 97.400000. 35 points · must have criteria
+Reports Patrick Ricard’s average offensive yards as 38.600000. 30 points · must have criteria
 
-Provides a scatter plot with average offensive yards on the x-axis. 20 points · must have criteria
+Reports Patrick Ricard’s average defensive impact as 5.600000. 30 points · must have criteria
 
-Provides a scatter plot with average defensive impact on the y-axis. 20 points · must have criteria
+Reports Patrick Ricard’s balance score as 6.892857. 30 points · must have criteria
 
-Scatter plot is semantically the same as the reference. 25 points · must have criteria
+Reports that Jesse James appears with 3 seasons. 30 points · must have criteria
 
-Provides a heatmap showing correlations between all numeric offensive and defensive stats. 25 points · must have criteria
+Reports Jesse James’s average offensive yards as 258.500000. 30 points · must have criteria
 
-Heatmap is semantically the same as the reference. 20 points · must have criteria
+Reports Jesse James’s average defensive impact as 2.750000. 30 points · must have criteria
 
-Provides a bar chart ranking the 20 players by balance score in ascending order. 25 points · must have criteria
+Reports Jesse James’s balance score as 94.000000. 30 points · must have criteria
 
-Labels each bar with the exact balance score. 20 points · must have criteria
+Reports that Josh Oliver appears with 3 seasons. 30 points · must have criteria
 
-Bar chart is semantically the same as the reference. 20 points · must have criteria
-- in this case, anytime a chart is requests, have a rubric similar to this wording. ALWAYS
+Reports Josh Oliver’s average offensive yards as 194.800000. 30 points · must have criteria
+
+Reports Josh Oliver’s average defensive impact as 2.000000. 30 points · must have criteria
+
+Reports Josh Oliver’s balance score as 97.400000. 30 points · must have criteria
+
+.
+
+📊 Generalized Chart Rubric Templates (ALWAYS use this wording)
+
+Scatter plot
+
+Provides a scatter plot with {{x_variable}} on the x-axis. <points> points · must have criteria
+
+Provides a scatter plot with {{y_variable}} on the y-axis. <points> points · must have criteria
+
+Scatter plot is semantically the same as the reference. <points> points · must have criteria
+
+Heatmap
+
+Provides a heatmap showing correlations between {{variables_or_stats}}. <points> points · must have criteria
+
+Heatmap is semantically the same as the reference. <points> points · must have criteria
+
+Bar chart
+
+Provides a bar chart ranking {{entities}} by {{metric}} in {{order}} order. <points> points · must have criteria
+
+Labels each bar with the exact {{metric}} value. <points> points · must have criteria
+
+Bar chart is semantically the same as the reference. <points> points · must have criteria
 `.trim();
 
     const userPrompt = `
