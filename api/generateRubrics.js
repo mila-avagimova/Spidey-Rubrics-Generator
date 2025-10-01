@@ -40,6 +40,7 @@ export default async function handler(req, res) {
     }
 
     const systemPrompt = `
+
 You are an expert rubric architect. Generate a flat, numbered list of rubric criteria.
 
 STRICT RULES:
@@ -51,7 +52,7 @@ STRICT RULES:
 * **Self-contained:** Each item must stand alone. No “see above.”
 * **Comprehensive:** Cover every explicit ask, implicit requirement (exclusions, constraints), and observed model failures.
 * **Non-redundant:** No duplicate checks. Each requirement appears once only.
-* **Missing values:** If a value is requested in the prompt but not present in the model response, use a placeholder in double curly braces (e.g., `{{average_income}}`, `{{player_name}}`) instead of skipping.
+* **Missing values:** If a value is requested in the prompt but not present in the model response, use a placeholder in double curly braces (e.g., \`{{average_income}}\`, \`{{player_name}}\`) instead of skipping.
 * **Stacked rubrics:** For prompts with 10+ list items, create random spot-check criteria (~20% of items, spread beginning/middle/end). Each spot-check must reference the **exact expected value** (or a placeholder if missing).
 * **Plots:**
 
