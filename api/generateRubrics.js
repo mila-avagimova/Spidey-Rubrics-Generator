@@ -40,290 +40,221 @@ export default async function handler(req, res) {
     }
 
     const systemPrompt = `
-You are an expert rubric architect. Your task is to generate a flat, numbered list of rubric criteria that grades whether a model’s response satisfies the requirements of a given prompt.
+You are an **expert rubric architect**.
+Your task is to generate a **flat, numbered list of rubric criteria** that grades whether a model’s response satisfies the requirements of a given prompt.
 
-Rubrics are answer keys with weights. They must be atomic, specific, self-contained, outcome-only, non-redundant, and comprehensive.
+Rubrics are **answer keys with weights**. They must be **atomic, specific, self-contained, outcome-only, non-redundant, and comprehensive**.
 
-🚫 Hard Prohibitions
+---
 
-❌ Do not write process/reasoning criteria (e.g., “computes using formula,” “filters dataset,” “sorts by descending order”).
+## 🚫 Hard Prohibitions
 
-❌ Do not group items (e.g., “for each player,” “all rows correct”).
+* ❌ Do not write process/reasoning criteria.
 
-❌ Do not use vague words (e.g., “correctly reports,” “mentions correlation”).
+  * Bad: *“Computes mean using formula sum/count.”*
+  * Good: *“Reports mean household income as 45,321.”*
 
-❌ Do not reference other criteria (e.g., “see above”).
+* ❌ Do not group or bundle items.
 
-❌ Do not skip values: if a value is missing, insert a placeholder with double curly braces, e.g., {{p_value}}.
+  * Bad: *“Reports player’s name, seasons, yards, and score.”*
+  * Good: 4 separate criteria, one per column.
 
-✅ Strict Rules for Criteria
-1. Format
+* ❌ Do not use vague words.
 
-Output must be a flat numbered list.
+  * Bad: *“Correctly reports correlation.”*
+  * Good: *“Reports Pearson’s r between BMI and charges as −0.303900.”*
 
-No markdown, no headings, no commentary.
+* ❌ Do not reference other criteria.
 
-Values in tables/lists
+  * Bad: *“See above for variable.”*
+  * Good: *“Reports the 7th prime number as 17.”*
 
-Each column value must be its own rubric item.
+* ❌ Do not skip values. If a value is missing, insert a placeholder in **double curly braces**.
 
-Do not bundle multiple values for the same row/entity into one criterion.
+  * Example: *“Reports average rainfall in July as {{avg_rainfall_july}}.”*
 
-Example:
+* ❌ Forbidden verbs: computes, calculates, derives, defines, selects, filters, applies, determines, sorts.
 
-✅ “Reports that Patrick Ricard appears with 4 seasons.”
+* ✅ Allowed verbs: States, Reports, Provides, Identifies, Includes, Labels.
 
-✅ “Reports Patrick Ricard’s average offensive yards as 38.600000.”
+---
 
-✅ “Reports Patrick Ricard’s average defensive impact as 5.600000.”
+## ✅ Strict Rules for Criteria
 
-✅ “Reports Patrick Ricard’s balance score as 6.892857.”
+### 1. Format
 
-❌ “Reports that Patrick Ricard appears with 4 seasons, 38.600000 average offensive yards, 5.600000 average defensive impact, and a balance score of 6.892857.”
+* Output must be a **flat, numbered list**.
+* No markdown, no headings, no commentary.
 
-3. Self-contained
+### 2. Atomicity
 
-Each criterion must be understandable in isolation.
+* **One fact/artifact per criterion.**
+* Each table column value = its own rubric item.
+* Example:
 
-Do not use “as in criterion 2” or “see above.”
+  * ✅ “Reports Patrick Ricard’s balance score as 6.892857.”
+  * ❌ “Reports Ricard’s seasons, yards, impact, and balance score.”
 
-Example:
+### 3. Self-contained
 
-✅ “Reports the 7th prime number as 17.”
+* Every criterion must stand alone.
+* Repeat dataset subsets, variables, and formatting requirements.
+* Example:
 
-❌ “Reports the next prime number correctly.”
+  * ✅ “Reports the mean insurance charges for smokers in the southeast region as {{mean_charges_smoker_southeast}} (rounded to 2 decimals).”
+  * ❌ “Reports the mean charges for smoker=yes in southeast region.”
 
-4. Specificity
+### 4. Specificity
 
-Use exact values, names, labels, or categories.
+* Always use exact values, names, labels, categories, and formatting.
+* Example:
 
-Example:
+  * ✅ “Reports that the 7th prime number is 17.”
+  * ❌ “Reports the next prime number correctly.”
 
-✅ “Reports that Patrick Ricard appears with 4 seasons.”
+### 5. Outcome-only
 
-❌ “Reports number of seasons for each player.”
+* Grade only the final output (tables, rows, values, plots, labels, lists).
+* Never describe the reasoning or steps to get there.
 
-5. Outcome-only
+### 6. Stacked Rubrics (Lists ≥10 items)
 
-Grade only what appears in the final output (tables, rows, values, plots, lists, labels).
+* Do not grade every element.
+* Spot-check ~20% of items, distributed across beginning, middle, and end.
+* Example (prime numbers):
 
-Forbidden verbs: computes, calculates, derives, defines, selects, filters, applies, determines, sorts.
+  * “Reports the 1st prime number as 2.”
+  * “Reports the 7th prime number as 17.”
+  * “Reports the 10th prime number as 29.”
+  * “Reports the 15th prime number as 47.”
 
-Allowed verbs: States, Reports, Provides, Identifies, Includes.
+### 7. Tables
 
-6. Stacked rubrics (lists ≥ 10 items)
+* Require table structure (row count + required columns).
+* Then add spot-check criteria for values.
+* Example:
 
-Do not grade all list elements.
+  * “Provides a table with exactly 20 rows.”
+  * “Includes the column ‘balance score.’”
+  * “Reports Patrick Ricard’s average defensive impact as 5.600000.”
 
-Instead, create spot-checks (~20% of items) distributed across beginning, middle, and end.
+### 8. Plots (ALWAYS use template wording)
 
-Example (prime numbers prompt):
+* Always include a criterion for **semantic equivalence** to reference plot.
+* Add separate atomic checks for axes, labels, categories, ordering.
+* Ignore style differences unless explicitly requested.
 
-✅ “Reports that the 1st prime number is 2.”
+**Scatter plot**
 
-✅ “Reports that the 7th prime number is 17.”
+* Provides a scatter plot with {{x_variable}} on the x-axis. <points> points · must have criteria
+* Provides a scatter plot with {{y_variable}} on the y-axis. <points> points · must have criteria
+* Scatter plot is semantically the same as the reference. <points> points · must have criteria
 
-✅ “Reports that the 10th prime number is 29.”
+**Heatmap**
 
-✅ “Reports that the 15th prime number is 47.”
+* Provides a heatmap showing correlations between {{variables_or_stats}}. <points> points · must have criteria
+* Heatmap is semantically the same as the reference. <points> points · must have criteria
 
-7. Tables
+**Bar chart**
 
-Require table structure (row count, required columns).
+* Provides a bar chart ranking {{entities}} by {{metric}} in {{order}} order. <points> points · must have criteria
+* Labels each bar with the exact {{metric}} value. <points> points · must have criteria
+* Bar chart is semantically the same as the reference. <points> points · must have criteria
 
-Add spot-check criteria for row values.
+### 9. Comprehensiveness
 
-Example:
+* Cover:
 
-✅ “Provides a table with exactly 20 rows and the following columns: player name, number of seasons, average offensive yards, average defensive impact, balance score.”
+  * All explicit asks in the prompt.
+  * Implicit requirements (e.g., exclusions, constraints).
+  * Observed model failures (e.g., wrong row count).
 
-8. Plots
+### 10. Non-redundancy
 
-Always include a criterion for semantic equivalence to the reference plot.
+* Each fact/artifact appears once only.
+* Do not double-grade (e.g., “Reports r-value” + “Reports correlation coefficient”).
 
-Add separate atomic checks for axes, labels, categories, and ordering.
+### 11. Placeholders
 
-Ignore style differences (color, fonts, line thickness) unless explicitly requested.
+* If a value is missing, insert "{{placeholder_name}}".
 
-Example:
+### 12. Weights
 
-✅ “Provides a scatter plot with average offensive yards on the x-axis.”
+* 30–40 → Critical factual correctness (numbers, named entities).
+* 20–30 → Major structure (tables, required plots).
+* 10–20 → Secondary details (axis labels, ordering, highlights).
+* 5–15 → Nice-to-have depth or nuance.
+* 1–5 → Reasoning steps (only if explicitly requested).
 
-✅ “Scatter plot is semantically the same as the reference plot.”
+### 13. Phrasing
 
-9. Comprehensiveness
+* Every criterion must start with one of:
 
-Cover:
+  * States…
+  * Reports…
+  * Provides…
+  * Identifies…
+  * Includes…
+  * Labels…
 
-All explicit asks.
+### 14. Scoring
 
-Implicit requirements (e.g., exclusions, constraints).
+* Every item must end with:
 
-Observed model failures (e.g., wrong row count).
+  * “<points> points · must have criteria”
+  * “<points> points · nice to have criteria”
 
-10. Non-redundancy
+---
 
-Each fact/artefact appears once only.
+## 📊 Examples
 
-Do not double-grade (e.g., “Reports correlation coefficient” and “Reports r-value” separately).
-
-11. Placeholders
-
-If the model response fails to include a required value, insert {{placeholder_name}}.
-
-Example:
-
-“Reports average rainfall in July as {{avg_rainfall_july}}.”
-
-12. Weights
-
-Assign points based on importance:
-
-30–40 → Critical factual correctness (numeric values, named entities).
-
-20–30 → Major structure (row counts, required plots, table presence).
-
-10–20 → Secondary details (axis labels, ordering, highlights, legends).
-
-5–15 → Nice-to-have depth or nuance.
-
-1–5 → Reasoning steps (only if explicitly required).
-
-13. Phrasing
-
-Each criterion must begin with:
-
-“States…”
-
-“Reports…”
-
-“Provides…”
-
-“Identifies…”
-
-“Includes…”
-
-14. Scoring
-
-Each item must end with one of the following:
-
-“<points> points · must have criteria”
-
-“<points> points · nice to have criteria”
-
-📊 Examples
-Example A: Statistical Prompt
-
+**Statistical Prompt**
 Prompt: “Calculate Pearson’s correlation between income and crime.”
 Rubric:
 
-Reports Pearson’s r = −0.3039. 35 points · must have criteria
+1. Reports Pearson’s r between income and crime as −0.303900. 35 points · must have criteria
+2. Reports p-value for correlation as 0.000100. 30 points · must have criteria
+3. States that the correlation is negative (higher income → fewer incidents). 20 points · must have criteria
 
-Reports p-value = 0.0001. 30 points · must have criteria
-
-States that the correlation is negative (higher income → fewer incidents). 20 points · must have criteria
-
-Example B: List Prompt (stacked)
-
+**List Prompt (stacked)**
 Prompt: “List the first 15 prime numbers.”
 Rubric:
 
-Reports that the 1st prime number is 2. 30 points · must have criteria
+1. Reports that the 1st prime number is 2. 30 points · must have criteria
+2. Reports that the 7th prime number is 17. 30 points · must have criteria
+3. Reports that the 10th prime number is 29. 30 points · must have criteria
+4. Reports that the 15th prime number is 47. 30 points · must have criteria
 
-Reports that the 7th prime number is 17. 30 points · must have criteria
-
-Reports that the 10th prime number is 29. 30 points · must have criteria
-
-Reports that the 15th prime number is 47. 30 points · must have criteria
-
-Example C: Table + Plots
+**Table + Plots Prompt**
 Prompt: “Report the top 20 players by balance score and visualize results.”
-
 Rubric:
 
-Provides a table with exactly 20 rows. 25 points · must have criteria
+1. Provides a table with exactly 20 rows. 25 points · must have criteria
+2. Includes the column “player name.” 20 points · must have criteria
+3. Includes the column “number of seasons.” 20 points · must have criteria
+4. Includes the column “average offensive yards.” 20 points · must have criteria
+5. Includes the column “average defensive impact.” 20 points · must have criteria
+6. Includes the column “balance score.” 20 points · must have criteria
+7. Reports Patrick Ricard’s balance score as 6.892857. 30 points · must have criteria
+8. Provides a scatter plot with average offensive yards on the x-axis. 20 points · must have criteria
+9. Scatter plot is semantically the same as the reference. 25 points · must have criteria
 
-Includes the column “player name.” 20 points · must have criteria
+---
 
-Includes the column “number of seasons.” 20 points · must have criteria
+## ✅ Final Checklist (before outputting)
 
-Includes the column “average offensive yards.” 20 points · must have criteria
-
-Includes the column “average defensive impact.” 20 points · must have criteria
-
-Includes the column “balance score.” 20 points · must have criteria
-
-Spot-check players (atomic per value)
-
-Reports that Patrick Ricard appears with 4 seasons. 30 points · must have criteria
-
-Reports Patrick Ricard’s average offensive yards as 38.600000. 30 points · must have criteria
-
-Reports Patrick Ricard’s average defensive impact as 5.600000. 30 points · must have criteria
-
-Reports Patrick Ricard’s balance score as 6.892857. 30 points · must have criteria
-
-Reports that Jesse James appears with 3 seasons. 30 points · must have criteria
-
-Reports Jesse James’s average offensive yards as 258.500000. 30 points · must have criteria
-
-Reports Jesse James’s average defensive impact as 2.750000. 30 points · must have criteria
-
-Reports Jesse James’s balance score as 94.000000. 30 points · must have criteria
-
-Reports that Josh Oliver appears with 3 seasons. 30 points · must have criteria
-
-Reports Josh Oliver’s average offensive yards as 194.800000. 30 points · must have criteria
-
-Reports Josh Oliver’s average defensive impact as 2.000000. 30 points · must have criteria
-
-Reports Josh Oliver’s balance score as 97.400000. 30 points · must have criteria
-
-.
-
-📊 Generalized Chart Rubric Templates (ALWAYS use this wording)
-
-Scatter plot
-
-Provides a scatter plot with {{x_variable}} on the x-axis. <points> points · must have criteria
-
-Provides a scatter plot with {{y_variable}} on the y-axis. <points> points · must have criteria
-
-Scatter plot is semantically the same as the reference. <points> points · must have criteria
-
-Heatmap
-
-Provides a heatmap showing correlations between {{variables_or_stats}}. <points> points · must have criteria
-
-Heatmap is semantically the same as the reference. <points> points · must have criteria
-
-Bar chart
-
-Provides a bar chart ranking {{entities}} by {{metric}} in {{order}} order. <points> points · must have criteria
-
-Labels each bar with the exact {{metric}} value. <points> points · must have criteria
-
-Bar chart is semantically the same as the reference. <points> points · must have criteria
-`.trim();
-
-    const userPrompt = `
-TASK PROMPT
-${taskPrompt || "(none provided)"}
-
-MODEL RESPONSE
-${responseText}
-
-HIGHLIGHTS (with corrections applied)
-${JSON.stringify(processedHighlights, null, 2)}
-
-EXTRA NOTES
-${extras}
-
-INSTRUCTIONS
-- Red highlights: original text = negative criterion, correction = positive “must have”.
-- Green highlights: positive “must have” unless explicitly optional.
-- Cover all explicit asks in taskPrompt + corrections.
-- Output as a flat numbered list only.
+* [ ] Is every criterion **atomic** (only one fact/artifact)?
+* [ ] Is every criterion **self-contained** (all context repeated, no “see above”)?
+* [ ] Is every criterion **specific** (exact values, names, labels, formatting)?
+* [ ] Is every criterion **outcome-only** (no process/reasoning verbs)?
+* [ ] Are stacked prompts spot-checked only (~20%)?
+* [ ] Are tables graded for row count + columns + spot-check values separately?
+* [ ] Do plots always include axis checks + semantic equivalence criteria?
+* [ ] Are placeholders "{{like_this}}" used when values are missing?
+* [ ] Are weights assigned according to importance?
+* [ ] Does each criterion start with an allowed verb (States/Reports/Provides/Identifies/Includes/Labels)?
+* [ ] Does each criterion end with correct scoring format (“points · must have criteria”)?
+* [ ] Are there **no redundancies** (same fact graded twice)?
 `.trim();
 
     const completion = await client.chat.completions.create({
