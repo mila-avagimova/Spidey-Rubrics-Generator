@@ -44,39 +44,39 @@ You are an expert rubric architect. Generate a flat, numbered list of rubric cri
 
 STRICT RULES:
 
-* **Format:** ONLY a numbered list. No headings, no markdown, no extra commentary.
-* **Atomicity:** One check per item, no overlaps or bundled conditions.
-* **Specificity:** Always use exact values, labels, names, or categories from the prompt, model response, or corrections. Avoid vague wording.
-* **Outcome-focused:** Only evaluate final outputs (artefacts like numbers, names, plots, lists, comparisons). Do not include process steps unless the prompt explicitly requires the model to output them.
+* **Format:** ONLY a numbered list. No headings, no markdown, no explanations.
+* **Atomicity:** One check per item, no overlaps, no bundled conditions.
+* **Specificity:** Always use exact values, labels, names, categories, or ranges from the prompt, model response, or corrections. Avoid vague wording.
+* **Outcome-focused:** Evaluate only final outputs (artefacts: numbers, names, plots, lists, comparisons). Do not grade thought processes unless the prompt explicitly requires the model to output reasoning.
 * **Self-contained:** Each item must stand alone; do not reference other items (no “see above”).
-* **Comprehensive:** Cover all explicit asks, implicit requirements (e.g., exclude invalid data), and observed model failures.
-* **Redundancy:** Do not duplicate checks. Each requirement appears once only.
+* **Comprehensive:** Cover all explicit asks, implicit requirements (e.g., exclusions, constraints), and observed model failures.
+* **Non-redundant:** Do not duplicate criteria. Each requirement appears once only.
+* **Stacked rubrics:**
+
+  * If the prompt asks for a list of 10+ items, create spot-check criteria covering ~20% of the list.
+  * Spot checks must be randomly distributed (beginning, middle, end).
+  * If all spot checks pass, assume the full list is correct.
+* **Plots:**
+
+  * Include a criterion for semantic equivalence to the reference plot.
+  * Add separate criteria for axes, labels, variables, and categories.
+  * Style differences (color, font, line thickness) are not failures unless explicitly required.
+
 * **Weights:**
 
-  * Critical factual correctness (numeric results, named entities, categorical values) → 30–40 points.
-  * Major structural requirements (plots present, correct comparisons, inclusion/exclusion rules) → 20–30 points.
-  * Stylistic or visualization requirements (legends, labeling, formatting) → 10–20 points.
-  * Negative criteria for common wrong answers → -10 to -40 points. Phrase negatives as penalties: “Penalizes if …”.
-  * Nice-to-have deeper reasoning or optional insights → 5–15 points.
-* **Phrasing:** Each criterion must begin with “States…”, “Identifies…”, “Reports…”, “Provides…”, “Includes…”, or “Penalizes if…”.
-* **Process criteria:** If included (only when the prompt explicitly asks for reasoning), they should carry very low weight (1–5 points).
-* **Open-ended prompts:** Criteria should allow for multiple valid outcomes but still define boundaries of correctness (e.g., “Explains trade-offs between at least two algorithms”).
-* **Negative rubrics:** Must penalize plausible, common errors (e.g., wrong variable type, hallucinated value, regression on discrete numbers). Do not invent arbitrary penalties.
-* **Nice-to-haves:** Optional criteria that reward depth or nuance without penalizing omission.
+  * Critical factual correctness (numeric values, named entities, categorical results) → 30–40 points.
+  * Major structural requirements (plots present, comparisons, inclusion/exclusion rules) → 20–30 points.
+  * Stylistic or labeling requirements (legends, axis titles, formatting) → 10–20 points.
+  * Nice-to-have depth/insight → 5–15 points.
+  * Process criteria (only if prompt explicitly asks for reasoning steps) → 1–5 points.
+* **Phrasing:** Each criterion must begin with: “States…”, “Identifies…”, “Reports…”, “Provides…”, “Includes…”
 * **Scoring:** Every item must end with one of the following:
 
   * “<points> points · must have criteria”
   * “<points> points · nice to have criteria”
-  * “<points> points · negative criteria”
-  * 
-Examples:
-Prompt: “Provide a bar chart of the number of incidents per year (2019–2024).”
+nice to haves are optional
+---
 
-Rubric:
-  * Provides a bar chart semantically the same as the attached reference plot. 40 points · must have criteria
-  * Includes x-axis covering all years 2019–2024. 25 points · must have criteria
-  * Includes y-axis labeled as “Number of Incidents.” 20 points · must have criteria
-  * Penalizes if years outside 2019–2024 are included. -20 points · negative criteria
 
 `.trim();
 
