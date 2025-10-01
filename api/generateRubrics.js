@@ -44,40 +44,35 @@ You are an expert rubric architect. Generate a flat, numbered list of rubric cri
 
 STRICT RULES:
 
-* **Format:** ONLY a numbered list. No headings, no markdown, no explanations.
-* **Atomicity:** One check per item, no overlaps, no bundled conditions.
-* **Specificity:** Always use exact values, labels, names, categories, or ranges from the prompt, model response, or corrections. Avoid vague wording.
-* **Outcome-focused:** Evaluate only final outputs (artefacts: numbers, names, plots, lists, comparisons). Do not grade thought processes unless the prompt explicitly requires the model to output reasoning.
-* **Self-contained:** Each item must stand alone; do not reference other items (no “see above”).
-* **Comprehensive:** Cover all explicit asks, implicit requirements (e.g., exclusions, constraints), and observed model failures.
-* **Non-redundant:** Do not duplicate criteria. Each requirement appears once only.
-* **Stacked rubrics:**
-
-  * If the prompt asks for a list of 10+ items, create spot-check criteria covering ~20% of the list.
-  * Spot checks must be randomly distributed (beginning, middle, end).
-  * If all spot checks pass, assume the full list is correct.
+* **Format:** ONLY a numbered list. No headings, no markdown, no commentary.
+* **Atomicity:** One check per item, no overlaps or bundled conditions.
+* **Specificity:** Always use exact values, names, labels, numeric results, categories, or counts from the prompt, response, or corrections. Do not write “calculates,” “computes,” or “defines.” Always phrase as what the model **states/reports/provides** in the output.
+* **Outcome-focused:** Evaluate only final artefacts (numbers, rows, tables, plots, lists, comparisons). Never grade intermediate methods or operations.
+* **Self-contained:** Each item must stand alone. No “see above.”
+* **Comprehensive:** Cover every explicit ask, implicit requirement (exclusions, constraints), and observed model failures.
+* **Non-redundant:** No duplicate checks. Each requirement appears once only.
+* **Missing values:** If a value is requested in the prompt but not present in the model response, use a placeholder in double curly braces (e.g., `{{average_income}}`, `{{player_name}}`) instead of skipping.
+* **Stacked rubrics:** For prompts with 10+ list items, create random spot-check criteria (~20% of items, spread beginning/middle/end). Each spot-check must reference the **exact expected value** (or a placeholder if missing).
 * **Plots:**
 
-  * Include a criterion for semantic equivalence to the reference plot.
-  * Add separate criteria for axes, labels, variables, and categories.
-  * Style differences (color, font, line thickness) are not failures unless explicitly required.
-
+  * Always include a criterion that the chart is semantically the same as the gold/reference.
+  * Add separate atomic criteria for axes, variables, labels, categories, and ordering.
+  * Ignore style differences (color, fonts, line thickness) unless explicitly requested.
+* **Tables:** If the output is a table, require both (a) correct structure (row count, column presence) and (b) specific row values at spot-check positions.
 * **Weights:**
 
-  * Critical factual correctness (numeric values, named entities, categorical results) → 30–40 points.
-  * Major structural requirements (plots present, comparisons, inclusion/exclusion rules) → 20–30 points.
-  * Stylistic or labeling requirements (legends, axis titles, formatting) → 10–20 points.
-  * Nice-to-have depth/insight → 5–15 points.
-  * Process criteria (only if prompt explicitly asks for reasoning steps) → 1–5 points.
-* **Phrasing:** Each criterion must begin with: “States…”, “Identifies…”, “Reports…”, “Provides…”, “Includes…”
-* **Scoring:** Every item must end with one of the following:
+  * Critical factual correctness (specific numeric values, exact names) → 30–40 points.
+  * Major structure (row counts, plot presence, table columns) → 20–30 points.
+  * Secondary details (axis labels, ordering, legends) → 10–20 points.
+  * Nice-to-have depth → 5–15 points.
+  * Process criteria (only if the prompt explicitly asks for reasoning steps) → 1–5 points.
+* **Phrasing:** Each criterion must begin with “States…”, “Identifies…”, “Reports…”, “Provides…”, or “Includes…”.
+* **Scoring:** Every item must end with:
 
   * “<points> points · must have criteria”
   * “<points> points · nice to have criteria”
-nice to haves are optional
+
 ---
-
-
 `.trim();
 
     const userPrompt = `
