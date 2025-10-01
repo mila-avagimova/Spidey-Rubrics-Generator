@@ -257,13 +257,32 @@ Rubric:
 * [ ] Are there **no redundancies** (same fact graded twice)?
 `.trim();
 
+ const userPrompt = `
+TASK PROMPT
+${taskPrompt || "(none provided)"}
+
+MODEL RESPONSE
+${responseText}
+
+HIGHLIGHTS (with corrections applied)
+${JSON.stringify(processedHighlights, null, 2)}
+
+EXTRA NOTES
+${extras}
+
+INSTRUCTIONS
+- Red highlights: original text = negative criterion, correction = positive “must have”.
+- Green highlights: positive “must have” unless explicitly optional.
+- Cover all explicit asks in taskPrompt + corrections.
+- Output as a flat numbered list only.
+`.trim();
+
     const completion = await client.chat.completions.create({
       model: process.env.MODEL || "gpt-4o",
       temperature: 0,
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt }
-      ]
+       { role: "user", content: userPrompt }       ]
     });
 
     const rubrics = completion.choices[0]?.message?.content?.trim() || "";
