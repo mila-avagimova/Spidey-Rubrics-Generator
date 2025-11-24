@@ -1,25 +1,10 @@
-// server.js
-import express from 'express';
-import multer from 'multer';
-import dotenv from 'dotenv';
+// generateRubrics.js
 import OpenAI from "openai";
 import * as XLSX from "xlsx"; 
-import path from 'path';
-import { fileURLToPath } from 'url';
 
-// Load environment variables from .env file
-dotenv.config(); 
+// NOTE: This file contains only the handler logic. 
+// It relies on server.js to handle environment variables, Express setup, and Multer.
 
-// Helper for ES Modules to get __dirname
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// --- 1. Multer Configuration ---
-// Configure Multer to store the file in memory (as a buffer)
-// This is required for the 'xlsx' library to read the file data directly.
-const upload = multer({ storage: multer.memoryStorage() });
-
-// --- 2. OpenAI Client & XLSX Parser ---
 const client = new OpenAI({
   apiKey: process.env.API_KEY,
   baseURL: process.env.BASE_URL
@@ -50,27 +35,171 @@ function parseXlsxContent(fileBuffer) {
   }
 }
 
-// --- 3. The API Handler Logic ---
-async function generateRubricsHandler(req, res) {
+// --- The API Handler ---
+
+export default async function generateRubricsHandler(req, res) {
+  if (req.method !== "POST") {
+    res.setHeader("Allow", "POST");
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
   try {
-    // req.body holds text fields; req.file holds the file buffer
     const { taskPrompt, systemPrompt } = req.body;
+    // Multer places the file buffer here:
     const fileBuffer = req.file ? req.file.buffer : null; 
 
     if (!taskPrompt || !systemPrompt || !fileBuffer) {
+         // Return 400 Bad Request if mandatory inputs are missing
          return res.status(400).json({ error: "Missing Task Prompt, Custom Instructions, or Golden Solution File." });
     }
     
+    // 1. Parse the XLSX file buffer
     const goldenSolutionText = parseXlsxContent(fileBuffer);
     
-    // --- LLM Prompts Setup ---
-    // NOTE: Replace this placeholder with the COMPLETE System Prompt you provided earlier
+    // 2. Setup LLM Prompts
+    // --- The Fixed, Detailed Rubric Rules System Prompt ---
     const rubricArchitectSystemPrompt = `
 You are an **expert rubric architect**.
 Your task is to generate a **flat, numbered list of rubric criteria** that grades whether a model’s response satisfies the requirements of a given prompt.
-... (PASTE YOUR FULL 14-RULE SYSTEM PROMPT HERE) ...
+
+Rubrics are **answer keys with weights**. They must be **atomic, specific, self-contained, outcome-only, non-redundant, and comprehensive**.
+
+---
+
+## 🚫 Hard Prohibitions
+
+* ❌ Do not write process/reasoning criteria.
+
+  * Bad: *“Computes mean using formula sum/count.”*
+  * Good: *“Reports mean household income as 45,321.”*
+
+* ❌ Do not group or bundle items.
+
+  * Bad: *“Reports player’s name, seasons, yards, and score.”*
+  * Good: 4 separate criteria, one per column.
+
+* ❌ Do not use vague words.
+
+  * Bad: *“Correctly reports correlation.”*
+  * Good: *“Reports Pearson’s r between BMI and charges as −0.303900.”*
+
+* ❌ Do not reference other criteria.
+
+  * Bad: *“See above for variable.”*
+  * Good: *“Reports the 7th prime number as 17.”*
+
+* ❌ Do not skip values. If a value is missing, insert a placeholder in **double curly braces**.
+
+  * Example: *“Reports average rainfall in July as {{avg_rainfall_july}}.”*
+
+* ❌ Forbidden verbs: computes, calculates, derives, defines, selects, filters, applies, determines, sorts.
+
+* ✅ Allowed verbs: States, Reports, Provides, Identifies, Includes, Labels.
+
+---
+
+## ✅ Strict Rules for Criteria
+
+### 1. Format
+
+* Output must be a **flat, numbered list**.
+* No markdown, no headings, no commentary.
+
+### 2. Atomicity
+
+* **One fact/artifact per criterion.**
+* Each table column value = its own rubric item.
+
+### 3. Self-contained
+
+* Every criterion must stand alone.
+* Repeat dataset subsets, variables, and formatting requirements.
+
+### 4. Specificity
+
+* Always use exact values, names, labels, categories, and formatting.
+
+### 5. Outcome-only
+
+* Grade only the final output (tables, rows, values, plots, labels, lists).
+* Never describe the reasoning or steps to get there.
+
+### 6. Stacked Rubrics (Lists ≥10 items)
+
+* Do not grade every element.
+* Spot-check ~20% of items, distributed across beginning, middle, and end.
+
+### 7. Tables
+
+* Require table structure (row count + required columns).
+* Then add spot-check criteria for values.
+
+### 8. Plots (ALWAYS use template wording)
+
+* Always include a criterion for **semantic equivalence** to reference plot.
+* Add separate atomic checks for axes, labels, categories, ordering.
+* Ignore style differences unless explicitly requested.
+
+**Scatter plot**
+
+* Provides a scatter plot with {{x_variable}} on the x-axis. <points> points · must have criteria
+* Provides a scatter plot with {{y_variable}} on the y-axis. <points> points · must have criteria
+* Scatter plot is semantically the same as the reference. <points> points · must have criteria
+
+**Heatmap**
+
+* Provides a heatmap showing correlations between {{variables_or_stats}}. <points> points · must have criteria
+* Heatmap is semantically the same as the reference. <points> points · must have criteria
+
+**Bar chart**
+
+* Provides a bar chart ranking {{entities}} by {{metric}} in {{order}} order. <points> points · must have criteria
+* Labels each bar with the exact {{metric}} value. <points> points · must have criteria
+* Bar chart is semantically the same as the reference. <points> points · must have criteria
+
+### 9. Comprehensiveness
+
+* Cover: All explicit asks in the prompt. Implicit requirements (e.g., exclusions, constraints).
+
+### 10. Non-redundancy
+
+* Each fact/artifact appears once only.
+
+### 11. Placeholders
+
+* If a value is missing, insert "{{placeholder_name}}".
+
+### 12. Weights
+
+* 30–40 → Critical factual correctness (numbers, named entities).
+* 20–30 → Major structure (tables, required plots).
+* 10–20 → Secondary details (axis labels, ordering, highlights).
+* 5–15 → Nice-to-have depth or nuance.
+* 1–5 → Reasoning steps (only if explicitly requested).
+
+### 13. Phrasing
+
+* Every criterion must start with one of: States…, Reports…, Provides…, Identifies…, Includes…, Labels….
+
+### 14. Scoring
+
+* Every item must end with: “<points> points · must have criteria” or “<points> points · nice to have criteria”
+
+---
+
+## ✅ Final Checklist (before outputting)
+
+* [ ] Is every criterion **atomic**?
+* [ ] Is every criterion **self-contained**?
+* [ ] Is every criterion **specific**?
+* [ ] Is every criterion **outcome-only**?
+* [ ] Are placeholders "{{like_this}}" used when values are missing?
+* [ ] Does each criterion start with an allowed verb?
+* [ ] Does each criterion end with correct scoring format?
+* [ ] Are there **no redundancies**?
 `.trim(); 
     
+    // --- User Prompt (Contextual instructions and data) ---
     const userPrompt = `
 // CUSTOM LLM INSTRUCTIONS (provided by the user in the UI)
 ${systemPrompt}
@@ -94,6 +223,7 @@ ${goldenSolutionText}
 - Output as a flat numbered list only, strictly following all rules in the system prompt.
 `.trim();
 
+    // 3. Call OpenAI API
     const completion = await client.chat.completions.create({
       model: process.env.MODEL || "gpt-4o",
       temperature: 0,
@@ -115,26 +245,3 @@ ${goldenSolutionText}
     res.status(500).json({ error: e.message || "Internal error" });
   }
 }
-
-// --- 4. Express Server Setup ---
-const app = express();
-const PORT = 3000;
-
-// Serve the static HTML file
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
-});
-
-// Define the API route
-// 'goldenSolutionFile' must match the name used in your HTML/JS FormData
-app.post(
-  '/api/generateRubricsFromXlsx', 
-  upload.single('goldenSolutionFile'), // Multer middleware processes the file first
-  generateRubricsHandler 
-); 
-
-// Start the server
-app.listen(PORT, () => {
-  console.log(`🚀 Server running at http://localhost:${PORT}`);
-  console.log("Ensure you have replaced the placeholder with your full system prompt in server.js!");
-});
