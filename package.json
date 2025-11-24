@@ -7,7 +7,18 @@
     "dev": "vercel dev"
   },
   "dependencies": {
+    "dotenv": "^17.2.3",
     "express": "^5.1.0",
-    "openai": "^4.58.1"
-  }
+    "multer": "^2.0.2",
+    "openai": "^4.104.0",
+    "xlsx": "^0.18.5"
+  },
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
 }
