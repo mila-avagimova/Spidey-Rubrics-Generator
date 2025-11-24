@@ -33,17 +33,28 @@ app.use(express.json());
 function parseXlsxContent(fileBuffer) {
   try {
     const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
-    let output = "--- GOLDEN SOLUTION DATA (PARSED XLSX) ---\n\n";
+    let output = "--- GOLDEN SOLUTION DATA (ALL COLUMNS, LIMITED ROWS) ---\n\n";
 
-    workbook.SheetNames.forEach(sheetName => {
-      const worksheet = workbook.Sheets[sheetName];
-      const csv = XLSX.utils.sheet_to_csv(worksheet);
-      
-      output += `## Sheet: ${sheetName}\n`;
-      output += "```csv\n";
-      output += csv.trim();
-      output += "\n```\n\n";
-    });
+    // Only process the FIRST sheet to save tokens
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    
+    // Find the maximum column letter used in the sheet
+    const range = XLSX.utils.decode_range(worksheet['!ref']);
+    const maxColLetter = XLSX.utils.encode_col(range.e.c);
+    
+    // CRITICAL TOKEN LIMIT: Limit the range to the first 100 rows (1 to 100)
+    // The range will be 'A1' up to 'MaxColLetter100'.
+    const limitedRange = `A1:${maxColLetter}100`;
+
+    // Convert only the selected range of the sheet to CSV
+    const csv = XLSX.utils.sheet_to_csv(worksheet, { range: limitedRange }); 
+    
+    output += `## Sheet: ${sheetName} (Limited to the first 100 rows)\n`;
+    output += "```csv\n";
+    output += csv.trim();
+    output += "\n```\n\n";
+
 
     return output;
   } catch (error) {
@@ -100,8 +111,6 @@ Your negative list is very short. While you have the major errors (zero values, 
 | **Hard-Coding Penalty** | While you check for formulas (Item 13), a separate negative check can target the failure of dynamic linking. |
 
 ### 3\. Missing System Prompt Update
-
-You are right; the prompt needs to explicitly enforce the checking of *all* component columns for complex tables, like the Segment Summary.
 
 -----
 
