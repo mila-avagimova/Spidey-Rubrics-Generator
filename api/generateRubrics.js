@@ -1,34 +1,22 @@
-// server.js
-import express from 'express';
-import multer from 'multer';
-import dotenv from 'dotenv';
+// generateRubrics.js
+
 import OpenAI from "openai";
 import * as XLSX from "xlsx"; 
-import path from 'path';
-import { fileURLToPath } from 'url';
+import multer from 'multer'; // Required for file uploads
 
-// Load environment variables from .env file
-dotenv.config(); 
+// --- Configuration and Setup ---
 
-// --- Setup ---
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const app = express();
-const PORT = process.env.PORT || 3000;
+// Load environment variables (Vercel loads these automatically, but this is good practice)
+// Note: Vercel requires environment variables (API_KEY) to be set in the project settings.
 
 const client = new OpenAI({
-  apiKey: process.env.API_KEY,
+  apiKey: process.env.API_KEY, // Reads from environment variables
   baseURL: process.env.BASE_URL
 });
 
-// Configure Multer to store the file in memory (buffer)
+// Configure Multer to store the uploaded file in memory (buffer)
+// Multer is instantiated here, but the middleware application is done in the handler.
 const upload = multer({ storage: multer.memoryStorage() });
-
-// --- Middleware ---
-// CRITICAL FIX: Explicitly parse URL-encoded bodies for text fields, 
-// even if Multer is also running. This is a common solution for 'req.body is undefined' errors.
-app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
 
 // --- Helper Functions ---
 
@@ -57,63 +45,67 @@ function parseXlsxContent(fileBuffer) {
   }
 }
 
-// --- API Handler Logic ---
+// --- The Core API Handler ---
 
-async function generateRubricsHandler(req, res) {
+// To handle file uploads in a serverless function, we wrap the handler
+// with Multer's middleware to process the incoming request stream.
+// We then execute the core logic with the processed req object.
+
+export default async function handler(req, res) {
+  
+  // 1. Method Check
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Method not allowed" });
   }
+  
+  // 2. File Upload Handling (The Multer middleware execution)
+  // This is the critical part to fix the 'req.body is undefined' error.
+  // We explicitly run the Multer single file handler here.
+  const uploadSingle = upload.single('goldenSolutionFile');
+  
+  await new Promise((resolve, reject) => {
+    uploadSingle(req, res, (err) => {
+      if (err) {
+        // Handle Multer errors (e.g., file size limits)
+        console.error("Multer Error:", err);
+        return reject(err);
+      }
+      resolve();
+    });
+  });
 
+  // 3. Core Logic Execution
   try {
-    // req.body should now be populated by Multer (and checked by express.urlencoded)
+    // req.body and req.file are now populated by Multer
     const { taskPrompt, systemPrompt } = req.body;
     const fileBuffer = req.file ? req.file.buffer : null; 
 
-    // Error check 
     if (!taskPrompt || !systemPrompt || !fileBuffer) {
          return res.status(400).json({ 
-             error: "Missing required inputs (Task Prompt, Custom Instructions, or File)." 
+             error: "Missing required inputs (Task Prompt, Custom Instructions, or File). Please check the file input." 
          });
     }
     
     const goldenSolutionText = parseXlsxContent(fileBuffer);
     
-    // --- LLM Prompts Setup (Complete System Prompt) ---
+    // --- LLM Prompts Setup ---
     const rubricArchitectSystemPrompt = `
 You are an **expert rubric architect**.
 Your task is to generate a **flat, numbered list of rubric criteria** that grades whether a model’s response satisfies the requirements of a given prompt.
-
-Rubrics are **answer keys with weights**. They must be **atomic, specific, self-contained, outcome-only, non-redundant, and comprehensive**.
-
----
-
-## 🚫 Hard Prohibitions
-* ❌ Do not write process/reasoning criteria.
-* ❌ Do not group or bundle items.
-* ❌ Do not use vague words.
-* ❌ Do not reference other criteria.
-* ❌ Do not skip values. If a value is missing, insert a placeholder in **double curly braces**.
-* ❌ Forbidden verbs: computes, calculates, derives, defines, selects, filters, applies, determines, sorts.
-* ✅ Allowed verbs: States, Reports, Provides, Identifies, Includes, Labels.
-
----
-
-## ✅ Strict Rules for Criteria
-... (Your full 14 rules, including examples, here) ...
----
-## ✅ Final Checklist (before outputting)
-...
-`.trim(); // Ensure this is the full, robust prompt text
-
+... (Your full 14 rules, prohibitions, and examples here) ...
+`.trim(); 
     
     const userPrompt = `
 // CUSTOM LLM INSTRUCTIONS (provided by the user in the UI)
 ${systemPrompt}
+    
 // TASK PROMPT
 ${taskPrompt}
+    
 // GOLDEN SOLUTION (Parsed from the uploaded XLSX file)
 ${goldenSolutionText}
+    
 // INSTRUCTIONS FOR RUBRIC GENERATION
 - Use the TASK PROMPT to understand the required output.
 - Use the GOLDEN SOLUTION to extract the exact values, formatting, and structure for the rubrics.
@@ -139,28 +131,7 @@ ${goldenSolutionText}
 
   } catch (e) {
     console.error("Handler error:", e);
-    // Return 500 status with an error message for the frontend
-    res.status(500).json({ error: e.message || "Internal server error" });
+    // Return 500 status with a detailed error message
+    res.status(500).json({ error: e.message || "Internal server error during LLM call." });
   }
 }
-
-
-// --- 5. Routing ---
-
-// Serve the static HTML file
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
-});
-
-// Define the API route
-// This must be the last middleware chain for this path
-app.post(
-  '/api/generateRubrics', 
-  upload.single('goldenSolutionFile'), 
-  generateRubricsHandler 
-); 
-
-// Start the server
-app.listen(PORT, () => {
-  console.log(`🚀 Server running at http://localhost:${PORT}`);
-});
