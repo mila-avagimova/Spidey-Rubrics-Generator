@@ -91,9 +91,8 @@
 
       <h3>Task Prompt (The original question/request)</h3>
       <textarea id="taskPrompt" placeholder="Paste the full task prompt here..."></textarea>
-
-      <h3>Custom LLM Instructions (User-defined guidance for the model)</h3>
-      <textarea id="systemPrompt" placeholder="E.g., 'You are a rubric generation expert. Use the Task Prompt and Golden Solution to create 5 detailed, numbered rubrics.'"></textarea>
+      
+      <p class="subtitle">Custom LLM Instructions are hardcoded in the server logic.</p>
 
       <h3>Golden Solution File (.xlsx)</h3>
       <input type="file" id="xlsxFileInput" accept=".xlsx">
@@ -110,25 +109,22 @@
   <script>
     document.getElementById("generateBtn").onclick = async () => {
       const taskPrompt = document.getElementById("taskPrompt").value;
-      const systemPrompt = document.getElementById("systemPrompt").value;
       const fileInput = document.getElementById("xlsxFileInput");
       const file = fileInput.files[0];
 
-      if (!taskPrompt || !systemPrompt || !file) {
-        alert("Please provide the Task Prompt, Custom Instructions, and an XLSX file.");
+      if (!taskPrompt || !file) {
+        alert("Please provide the Task Prompt and an XLSX file.");
         return;
       }
 
       const formData = new FormData();
-      // NOTE: The key 'goldenSolutionFile' must match the name used by Multer in server.js
       formData.append("taskPrompt", taskPrompt);
-      formData.append("systemPrompt", systemPrompt);
+      // NOTE: We no longer append systemPrompt to formData
       formData.append("goldenSolutionFile", file);
 
       document.getElementById("rubrics").innerText = "Generating rubrics... This may take a moment. ⏳";
 
       try {
-        // Updated endpoint to match the server
         const res = await fetch("/api/generateRubrics", {
           method: "POST",
           body: formData

@@ -1,28 +1,35 @@
-// generateRubrics.js
-
+// server.js
+import express from 'express';
+import multer from 'multer';
+import dotenv from 'dotenv';
 import OpenAI from "openai";
 import * as XLSX from "xlsx"; 
-import multer from 'multer'; // Required for file uploads
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-// --- Configuration and Setup ---
+// Load environment variables
+dotenv.config(); 
 
-// Load environment variables (Vercel loads these automatically, but this is good practice)
-// Note: Vercel requires environment variables (API_KEY) to be set in the project settings.
+// --- Setup ---
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const app = express();
+const PORT = process.env.PORT || 3000;
 
 const client = new OpenAI({
-  apiKey: process.env.API_KEY, // Reads from environment variables
+  apiKey: process.env.API_KEY,
   baseURL: process.env.BASE_URL
 });
 
 // Configure Multer to store the uploaded file in memory (buffer)
-// Multer is instantiated here, but the middleware application is done in the handler.
 const upload = multer({ storage: multer.memoryStorage() });
+
+// --- Global Middleware ---
+app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
 
 // --- Helper Functions ---
 
-/**
- * Converts an Excel file buffer into a structured, LLM-readable text string.
- */
 function parseXlsxContent(fileBuffer) {
   try {
     const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
@@ -45,60 +52,125 @@ function parseXlsxContent(fileBuffer) {
   }
 }
 
-// --- The Core API Handler ---
+// --- API Handler Logic ---
 
-// To handle file uploads in a serverless function, we wrap the handler
-// with Multer's middleware to process the incoming request stream.
-// We then execute the core logic with the processed req object.
-
-export default async function handler(req, res) {
-  
-  // 1. Method Check
+async function generateRubricsHandler(req, res) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Method not allowed" });
   }
-  
-  // 2. File Upload Handling (The Multer middleware execution)
-  // This is the critical part to fix the 'req.body is undefined' error.
-  // We explicitly run the Multer single file handler here.
-  const uploadSingle = upload.single('goldenSolutionFile');
-  
-  await new Promise((resolve, reject) => {
-    uploadSingle(req, res, (err) => {
-      if (err) {
-        // Handle Multer errors (e.g., file size limits)
-        console.error("Multer Error:", err);
-        return reject(err);
-      }
-      resolve();
-    });
-  });
 
-  // 3. Core Logic Execution
   try {
-    // req.body and req.file are now populated by Multer
-    const { taskPrompt, systemPrompt } = req.body;
+    // 1. Destructure inputs (removed 'systemPrompt')
+    const { taskPrompt } = req.body;
     const fileBuffer = req.file ? req.file.buffer : null; 
 
-    if (!taskPrompt || !systemPrompt || !fileBuffer) {
+    if (!taskPrompt || !fileBuffer) {
          return res.status(400).json({ 
-             error: "Missing required inputs (Task Prompt, Custom Instructions, or File). Please check the file input." 
+             error: "Missing required inputs (Task Prompt or File)." 
          });
     }
     
+    // 2. Parse File
     const goldenSolutionText = parseXlsxContent(fileBuffer);
     
-    // --- LLM Prompts Setup ---
+    // 3. Define Prompts
+    
+    // The strict rubric formatting rules remain the same (Role: system)
     const rubricArchitectSystemPrompt = `
-You are an **expert rubric architect**.
-Your task is to generate a **flat, numbered list of rubric criteria** that grades whether a model’s response satisfies the requirements of a given prompt.
-... (Your full 14 rules, prohibitions, and examples here) ...
+
+
+
+### 1\. Missing Positive Spot Checks & Metrics
+
+| Type of Missing Criteria | Why It's Needed | Examples to Add |
+| :--- | :--- | :--- |
+| **Tab/Layout Validation (Item 41-52)** | You are missing the fundamental layout checks for the **Segment Summary** table (e.g., column presence for Gender, Lunch, Num Students, % High, etc., as seen in the "perfect rubric"). Your current list only verifies the *calculated* columns. | **Add:** Column presence rubrics for Gender, Lunch, Num Students, Avg Math, % High, % Medium, etc., in the **Segment Summary** sheet. |
+| **Remaining Dashboard Metrics (Items 16-19, 22-25)** | You only have one Dashboard metric (Avg Overall - Completed). You are missing the remaining required metrics and their values. | **Add:** Rubrics for Avg Overall - Not Completed, Difference, Avg Overall - Standard, and Avg Overall - Free/Reduced. |
+| **Top 3 Segments Spot Checks (Items 27-28)** | Item 12 covers Rank 1, but the **Atomic** rule requires you to verify Rank 2 and Rank 3 separately. | **Add:** Rubrics for the values of Rank 2 and Rank 3 segments. |
+| **Band vs. Test Prep Matrix Checks (Items 30-33)** | You verify the chart (Item 18) and that the bars match the matrix (Item 19), but you haven't spot-checked the values *in the matrix itself*. | **Add:** Rubrics checking the Avg Overall values for High/Not Completed, Medium/Completed, etc., in the matrix. |
+
+### 2\. Missing Negative Rubrics (Comprehensiveness of Errors)
+
+Your negative list is very short. While you have the major errors (zero values, secondary tables, causal language), you are missing common negative checks for spreadsheet tasks:
+
+| Missing Negative Check | Why It's Needed |
+| :--- | :--- |
+| **Irrelevant/Extra Content** | Penalizing the inclusion of unrequested charts, analyses, or invented stats (hallucinations). |
+| **Hard-Coding Penalty** | While you check for formulas (Item 13), a separate negative check can target the failure of dynamic linking. |
+
+### 3\. Missing System Prompt Update
+
+You are right; the prompt needs to explicitly enforce the checking of *all* component columns for complex tables, like the Segment Summary.
+
+-----
+
+## ⚙️ Super System Prompt Update
+
+The updated system prompt below explicitly calls out the need to check *all* columns and introduces the missing categorical checks.
+
+### **Updated Directive for Layout Checks (Adding detail to Item 2)**
+
+Under the Table Layout/Structure rubric type, I will clarify that for multi-component tables (like the Segment Summary table), *all* required columns (Gender, Num Students, % High, etc.) must have their own separate **Layout Rubric** to satisfy the **Atomic** rule.
+
+-----
+
+## ⚙️ Rubric Generator System Prompt (Super Final Production Version - Detailed)
+
+You are an expert Rubric Generator AI. Your sole role is to analyze a user prompt and its correct solution (Golden Spreadsheet) to generate a comprehensive, objective, and accurately weighted set of evaluation rubrics. You **must not** attempt to calculate results or generate formulas; you will strictly use the placeholder specified in the instructions for all complex technical definitions.
+
+**Your output must conform exactly to the structure and principles derived from the provided perfect rubric examples.**
+
+### **I. Main Rubric Rules (Universal Adherence)**
+
+1.  **Atomic:** Targets a single, specific, discrete ask. Do not bundle tasks.
+2.  **Self-Contained:** All information needed for evaluation must be present in the rubric itself (using values from the Golden Spreadsheet).
+3.  **Objective & Factually Correct:** Targets verifiable values and claims.
+4.  **Positive Wording:** Criteria must be phrased in terms of an element **being present** in the response.
+5.  **Simple Present Tense:** All criteria must start with the simple present tense.
+6.  **Comprehensive:** Includes **100%** of the essential criteria.
+7.  **Not-overlapping:** No redundant items.
+8.  **Spot-Check Rule:** For lists exceeding 10 items, use spot-check rubrics for **10-20%** of items, sampling values randomly from the beginning, middle, and end.
+
+### **II. Positive Rubric Types and Application (Step 7)**
+
+Positive rubrics verify required elements are present and correct. Accuracy-related criteria receive the highest weights (up to +40).
+
+**MANDATORY FORMATTING:** All criteria must adhere to the following structure for clarity and location identification.
+
+| Rubric Type | Purpose & Focus | **Weight Guidance** | Required Format Template |
+| :--- | :--- | :--- | :--- |
+| **1. Tab Presence** | Confirms the existence of required sheets/documents. | Low-to-Medium (+15 to +20) | "[+W] Includes a tab named "<Tab Name>" in the workbook." |
+| **2. Layout/Structure** | Verifies the presence of key columns, rows, or required structure within a sheet. **NOTE:** For multi-column tables (e.g., Segment Summary), **every required column** must have its own separate Layout Rubric (e.g., one for Gender, one for Num Students, one for % High, etc.). | Low-to-Medium (+15 to +25) | "[+W] Includes a column labeled "<Label>" in the <Tab Name> sheet or a semantically equivalent name."|
+| **3. Cell Value Spot-Check** | **Most Critical.** Verifies the numerical accuracy of key calculations or data points against the Golden Spreadsheet values. **This includes all final metrics, matrix values, and spot-checks on complex calculated columns.** | **Highest** (+25 to +40) | "[+W] Reports an Avg Overall Score of 72.7 for the first student with gender = female..." |
+| **4. Formula/Logic (Method)** | Confirms calculations were achieved using dynamic formulas. **CRITICALLY, you must use the placeholder `[[FORMULA_HERE]]` instead of inserting any actual formula text.** | Medium (+15 to +20) | "[+W] Uses a formula in the Overall Avg Score cell for the first student that is semantically the same as [[FORMULA_HERE]]."|
+| **5. Formatting/Order** | Checks presentation requirements (sort order, conditional formatting, unique values displayed). | Low (+10 to +15) | "[+W] Displays the ordered Avg Overall values shown in the Segment Summary table from highest to lowest as <Value List>."|
+| **6. Plot Rubrics** | Verifies the correctness and structure of any required charts. | Medium-to-High (+20 to +25) | "[+W] Includes a clustered column chart on the Dashboard that uses High, Medium, and Low as the performance band category labels..." |
+
+### **III. Negative Rubrics (The Penalties)**
+
+  * **Wording:** Must be phrased positively (in terms of the incorrect element **being present** in the response).
+  * **Weight:** Assign a **negative weight (-1 to -40)**.
+  * **Constraint:** The absolute value of the negative weight **must not exceed** the absolute value of any related positive criterion.
+  * **Target Missing Errors:** Ensure a penalty exists for including unrequested output, hard-coding where formulas are required (even if Item 4 is missed), and common analytical errors.
+
+### **IV. Input and Output Format**
+
+**Input Structure:**
+
+1.  **User Prompt (Initial Request):** [Text of the user's request]
+2.  **Golden Spreadsheet (Correct Solution):** [The correct data, values, and layout]
+
+**Output Structure:**
+Your final output must be a single, structured list using Markdown headers to separate sections, with the numerical weight placed in brackets at the start of each item.
 `.trim(); 
     
+    // The user-defined instructions are now HARDCODED into the user prompt (Role: user)
+    const HARDCODED_INSTRUCTIONS = "You must prioritize numerical accuracy and specific value checks. Ensure all calculated metrics are reported with four decimal places of precision.";
+    
     const userPrompt = `
-// CUSTOM LLM INSTRUCTIONS (provided by the user in the UI)
-${systemPrompt}
+// CUSTOM LLM INSTRUCTIONS (HARDCODED)
+${HARDCODED_INSTRUCTIONS}
     
 // TASK PROMPT
 ${taskPrompt}
@@ -113,6 +185,7 @@ ${goldenSolutionText}
 - Output as a flat numbered list only, strictly following all rules in the system prompt.
 `.trim();
 
+    // 4. Call OpenAI API
     const completion = await client.chat.completions.create({
       model: process.env.MODEL || "gpt-4o",
       temperature: 0,
@@ -131,7 +204,23 @@ ${goldenSolutionText}
 
   } catch (e) {
     console.error("Handler error:", e);
-    // Return 500 status with a detailed error message
     res.status(500).json({ error: e.message || "Internal server error during LLM call." });
   }
 }
+
+
+// --- 5. Routing ---
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+app.post(
+  '/api/generateRubrics', 
+  upload.single('goldenSolutionFile'), 
+  generateRubricsHandler 
+); 
+
+// Start the server
+app.listen(PORT, () => {
+  console.log(`🚀 Server running at http://localhost:${PORT}`);
+});
